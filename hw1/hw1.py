@@ -168,8 +168,14 @@ def efficient_gradient_descent(X, y, theta, alpha, num_iters):
     # TODO: Implement the efficient gradient descent optimization algorithm.  #
     ###########################################################################
     for i in range(num_iters):
+
         theta = theta - alpha * (X.T.dot(X.dot(theta) - y)) / len(y)
         J_history.append(compute_cost(X, y, theta))
+
+        if np.isnan(J_history[-1]) or np.isinf(J_history[-1]):
+            print(f"Alpha={alpha} caused divergence at iteration {i}")
+            break
+
         if len(J_history) > 1 and abs(J_history[-1] - J_history[-2]) < 1e-8:
             break
     ###########################################################################
@@ -198,7 +204,11 @@ def find_best_alpha(X_train, y_train, X_val, y_val, iterations):
     ###########################################################################
     # TODO: Implement the function and find the best alpha value.             #
     ###########################################################################
-    pass
+    for alpha in alphas:
+        theta_init = np.zeros(X_train.shape[1])
+        theta_learned, _ = efficient_gradient_descent(X_train, y_train, theta_init, alpha, iterations)
+        val_loss = compute_cost(X_val, y_val, theta_learned)
+        alpha_dict[alpha] = val_loss
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
