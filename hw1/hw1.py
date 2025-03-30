@@ -67,7 +67,7 @@ def compute_cost(X, y, theta):
     ###########################################################################
     # TODO: Implement the MSE cost function.                                  #
     ###########################################################################
-
+    J = np.sum((X.dot(theta) - y)**2) / (2 * len(y))
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -99,7 +99,9 @@ def gradient_descent(X, y, theta, alpha, num_iters):
     ###########################################################################
     # TODO: Implement the gradient descent optimization algorithm.            #
     ###########################################################################
-    pass
+    for i in range(num_iters):
+        theta = theta - alpha * (X.T.dot(X.dot(theta) - y)) / len(y)
+        J_history.append(compute_cost(X, y, theta))
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -126,7 +128,16 @@ def compute_pinv(X, y):
     ###########################################################################
     # TODO: Implement the pseudoinverse algorithm.                            #
     ###########################################################################
-    pass
+
+    # Compute the transpose of X
+    X_T = X.T
+    # Compute (X^T * X)
+    XTX = X_T.dot(X)
+    # Compute the inverse of (X^T * X)
+    XTX_inv = np.linalg.inv(XTX)
+    # Compute the optimal parameters: (X^T * X)^(-1) * X^T * y
+    pinv_theta = XTX_inv.dot(X_T).dot(y)
+
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -156,7 +167,11 @@ def efficient_gradient_descent(X, y, theta, alpha, num_iters):
     ###########################################################################
     # TODO: Implement the efficient gradient descent optimization algorithm.  #
     ###########################################################################
-    pass
+    for i in range(num_iters):
+        theta = theta - alpha * (X.T.dot(X.dot(theta) - y)) / len(y)
+        J_history.append(compute_cost(X, y, theta))
+        if len(J_history) > 1 and abs(J_history[-1] - J_history[-2]) < 1e-8:
+            break
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
