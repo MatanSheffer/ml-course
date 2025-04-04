@@ -22,8 +22,10 @@ def preprocess(X,y):
     ###########################################################################
     # TODO: Implement the normalization function.                             #
     ###########################################################################
-    X = (X - np.mean(X, axis=0)) / np.std(X, axis=0)
-    y = (y - np.mean(y)) / np.std(y)
+    if X.min() != X.max():
+        X = (X - X.mean()) / (X.max() - X.min())
+    if y.min() != y.max():
+        y = (y - y.mean()) / (y.max() - y.min())
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -171,11 +173,6 @@ def efficient_gradient_descent(X, y, theta, alpha, num_iters):
 
         theta = theta - alpha * (X.T.dot(X.dot(theta) - y)) / len(y)
         J_history.append(compute_cost(X, y, theta))
-
-        if np.isnan(J_history[-1]) or np.isinf(J_history[-1]):
-            print(f"Alpha={alpha} caused divergence at iteration {i}")
-            break
-
         if len(J_history) > 1 and abs(J_history[-1] - J_history[-2]) < 1e-8:
             break
     ###########################################################################
