@@ -1,6 +1,6 @@
 ###### Your ID ######
-# ID1: 123456789
-# ID2: 987654321
+# ID1: 201337151
+# ID2:
 #####################
 
 # imports 
@@ -178,7 +178,7 @@ def efficient_gradient_descent(X, y, theta, alpha, num_iters):
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
-    return theta, J_history
+    return theta, J_history, i + 1
 
 def find_best_alpha(X_train, y_train, X_val, y_val, iterations):
     """
@@ -203,9 +203,8 @@ def find_best_alpha(X_train, y_train, X_val, y_val, iterations):
     ###########################################################################
     for alpha in alphas:
         theta_init = np.zeros(X_train.shape[1])
-        theta_learned, _ = efficient_gradient_descent(X_train, y_train, theta_init, alpha, iterations)
-        val_loss = compute_cost(X_val, y_val, theta_learned)
-        alpha_dict[alpha] = val_loss
+        theta_learned,_ , _ = efficient_gradient_descent(X_train, y_train, theta_init, alpha, iterations)
+        alpha_dict[alpha] = compute_cost(X_val, y_val, theta_learned)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
