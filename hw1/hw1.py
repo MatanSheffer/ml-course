@@ -1,6 +1,6 @@
 ###### Your ID ######
 # ID1: 201337151
-# ID2:
+# ID2: 307854505
 #####################
 
 # imports 
@@ -22,9 +22,9 @@ def preprocess(X,y):
     ###########################################################################
     # TODO: Implement the normalization function.                             #
     ###########################################################################
-    if X.min() != X.max():
+    if X.max() != X.min():
         X = (X - X.mean()) / (X.max() - X.min())
-    if y.min() != y.max():
+    if y.max() != y.min():
         y = (y - y.mean()) / (y.max() - y.min())
     ###########################################################################
     #                             END OF YOUR CODE                            #
@@ -64,7 +64,6 @@ def compute_cost(X, y, theta):
     Returns:
     - J: the cost associated with the current set of parameters (single number).
     """
-    
     J = 0  # We use J for the cost.
     ###########################################################################
     # TODO: Implement the MSE cost function.                                  #
@@ -98,12 +97,34 @@ def gradient_descent(X, y, theta, alpha, num_iters):
     
     theta = theta.copy() # optional: theta outside the function will not change
     J_history = [] # Use a python list to save the cost value in every iteration
+    m = len(y)  # number of training examples
     ###########################################################################
     # TODO: Implement the gradient descent optimization algorithm.            #
     ###########################################################################
+    window_size = 10  # Look at last 10 iterations for trend
+    increase_threshold = 2.0  # Allow up to 100% increase from minimum
+    
     for i in range(num_iters):
-        theta = theta - alpha * (X.T.dot(X.dot(theta) - y)) / len(y)
-        J_history.append(compute_cost(X, y, theta))
+        # Compute predictions
+        h = X.dot(theta)
+        # Compute gradients
+        gradients = X.T.dot(h - y) / m
+        # Update parameters
+        theta = theta - alpha * gradients
+        # Save the cost
+        current_cost = compute_cost(X, y, theta)
+        J_history.append(current_cost)
+        
+        # More robust early stopping:
+        # 1. Only start checking after window_size iterations
+        # 2. Compare against minimum in recent window
+        # 3. Stop if cost is significantly higher than recent minimum
+        if i >= window_size:
+            recent_min = min(J_history[-window_size:])
+            if current_cost > recent_min * increase_threshold:
+                print(f"Warning: Cost increased significantly at iteration {i}. Stopping early.")
+                break
+            
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -125,7 +146,7 @@ def compute_pinv(X, y):
     Returns:
     - pinv_theta: The optimal parameters of your model.
     """
-    
+   
     pinv_theta = []
     ###########################################################################
     # TODO: Implement the pseudoinverse algorithm.                            #
@@ -164,21 +185,44 @@ def efficient_gradient_descent(X, y, theta, alpha, num_iters):
     - J_history: the loss value for every iteration.
     """
     
-    theta = theta.copy() # optional: theta outside the function will not change
+    theta = theta.copy()# optional: theta outside the function will not change
     J_history = [] # Use a python list to save the cost value in every iteration
+    m = len(y)  # number of training examples
     ###########################################################################
     # TODO: Implement the efficient gradient descent optimization algorithm.  #
     ###########################################################################
+    window_size = 10  # Look at last 10 iterations for trend
+    divergence_threshold = 5.0  # Stop if cost is 5x higher than minimum seen
+    min_cost_seen = float('inf')
+    
     for i in range(num_iters):
+        # Compute predictions
+        h = X.dot(theta)
+        # Compute gradients
+        gradients = X.T.dot(h - y) / m
+        # Update parameters
+        theta = theta - alpha * gradients
+        # Save the cost
+        current_cost = compute_cost(X, y, theta)
+        J_history.append(current_cost)
+        
+        # Update minimum cost seen
+        min_cost_seen = min(min_cost_seen, current_cost)
+        
+        # Check for divergence
+        if current_cost > min_cost_seen * divergence_threshold:
+            return theta, J_history
+            
+        # Stop if improvement is small enough over window
+        if i >= window_size:
+            recent_improvement = J_history[-window_size] - current_cost
+            if abs(recent_improvement) < 1e-8:
+                break
 
-        theta = theta - alpha * (X.T.dot(X.dot(theta) - y)) / len(y)
-        J_history.append(compute_cost(X, y, theta))
-        if len(J_history) > 1 and abs(J_history[-1] - J_history[-2]) < 1e-8:
-            break
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
-    return theta, J_history, i + 1
+    return theta, J_history
 
 def find_best_alpha(X_train, y_train, X_val, y_val, iterations):
     """
@@ -203,8 +247,10 @@ def find_best_alpha(X_train, y_train, X_val, y_val, iterations):
     ###########################################################################
     for alpha in alphas:
         theta_init = np.zeros(X_train.shape[1])
-        theta_learned,_ , _ = efficient_gradient_descent(X_train, y_train, theta_init, alpha, iterations)
-        alpha_dict[alpha] = compute_cost(X_val, y_val, theta_learned)
+        theta_learned,_ = efficient_gradient_descent(X_train, y_train, theta_init, alpha, iterations)
+        loss = compute_cost(X_val, y_val, theta_learned)
+        ##if not np.isnan(loss) and not np.isinf(loss):
+        alpha_dict[alpha] = loss
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -215,10 +261,7 @@ def forward_feature_selection(X_train, y_train, X_val, y_val, best_alpha, iterat
     Forward feature selection is a greedy, iterative algorithm used to 
     select the most relevant features for a predictive model. The objective 
     of this algorithm is to improve the model's performance by identifying 
-    and using only the most relevant features, potentially reducing overfitting, 
-    improving accuracy, and reducing computational cost.
-
-    You should use the efficient version of gradient descent for this part. 
+    and using only the most relevant features.
 
     Input:
     - X_train, y_train, X_val, y_val: the input data without bias trick
@@ -229,10 +272,47 @@ def forward_feature_selection(X_train, y_train, X_val, y_val, best_alpha, iterat
     - selected_features: A list of selected top 5 feature indices
     """
     selected_features = []
-    #####c######################################################################
+    ###########################################################################
     # TODO: Implement the function and find the best alpha value.             #
     ###########################################################################
-    pass
+    
+    while len(selected_features) < 5:
+        lowest_error = float('inf')
+        next_best_feature = None
+        
+        # Calculate some values once outside the feature loop
+        current_features = len(selected_features)
+        theta_size = current_features + 2  # +2 for bias and the new feature we'll try
+        
+        # Try each remaining feature
+        remaining_features = [f for f in range(X_train.shape[1]) if f not in selected_features]
+        
+        for feature in remaining_features:
+            # Prepare feature matrix with selected features + current candidate
+            features_to_try = selected_features + [feature]
+            X_train_subset = X_train[:, features_to_try]
+            X_val_subset = X_val[:, features_to_try]
+            
+            # Add bias term
+            X_train_subset = apply_bias_trick(X_train_subset)
+            X_val_subset = apply_bias_trick(X_val_subset)
+            
+            # Initialize theta - use zeros as they work well with normalized data
+            theta = np.zeros(theta_size)
+            
+            # Train with reduced iterations
+            theta, _ = efficient_gradient_descent(X_train_subset, y_train, theta, 
+                                               best_alpha, iterations)
+            
+            # Compute validation error
+            error = compute_cost(X_val_subset, y_val, theta)
+            
+            if error < lowest_error:
+                lowest_error = error
+                next_best_feature = feature
+        
+        selected_features.append(next_best_feature)
+    
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -249,12 +329,31 @@ def create_square_features(df):
     - df_poly: The input data with polynomial features added as a dataframe
                with appropriate feature names
     """
-
-    df_poly = df.copy()
     ###########################################################################
     # TODO: Implement the function to add polynomial features                 #
     ###########################################################################
-    pass
+    # Get list of original column names
+    original_features = list(df.columns)
+    
+    # Create a dictionary to store all new features
+    new_features = {}
+    
+    # Step 1: Create squared features
+    for feature in original_features:
+        new_column_name = feature + "^2"
+        new_features[new_column_name] = df[feature] * df[feature]
+    
+    # Step 2: Create interaction features
+    for i in range(len(original_features)):
+        for j in range(i + 1, len(original_features)):
+            feature1 = original_features[i]
+            feature2 = original_features[j]
+            new_column_name = feature1 + "*" + feature2
+            new_features[new_column_name] = df[feature1] * df[feature2]
+    
+    # Combine original dataframe with new features all at once
+    df_poly = pd.concat([df, pd.DataFrame(new_features)], axis=1)
+    
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
