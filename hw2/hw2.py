@@ -101,8 +101,6 @@ def calc_entropy(data):
     return entropy
 
 
-import numpy as np
-
 class DecisionNode:
     def __init__(self, data, impurity_func, feature=-1, depth=0, chi=1, max_depth=1000, gain_ratio=False):
         self.data = data  # the relevant data for the node
@@ -205,6 +203,30 @@ class DecisionNode:
             self.terminal = True
             return
 
+        # ---------- χ² PRE‑PRUNING ----------
+        df = len(best_groups) - 1
+        if self.chi < 1 and df > 0 and df in chi_table:
+            # compute χ² statistic for the candidate split
+            total = self.data.shape[0]
+            labels_all, total_counts = np.unique(self.data[:, -1], return_counts=True)
+            chi_stat = 0.0
+            for subset in best_groups.values():
+                subset_size = subset.shape[0]
+                subset_labels, subset_counts = np.unique(subset[:, -1], return_counts=True)
+                # expected counts under independence
+                expected = (total_counts * subset_size) / total
+                # align actual counts to full label list
+                aligned_actual = np.zeros_like(expected, dtype=float)
+                for lbl, cnt in zip(subset_labels, subset_counts):
+                    idx = np.where(labels_all == lbl)[0][0]
+                    aligned_actual[idx] = cnt
+                chi_stat += np.sum((aligned_actual - expected) ** 2 / expected)
+            # prune if χ² is below threshold
+            if chi_stat < chi_table[df][self.chi]:
+                self.terminal = True
+                return
+        # ---------- end χ² PRE‑PRUNING ----------
+
         self.feature = best_feat
         self.children = []
         self.children_values = []
@@ -282,7 +304,15 @@ class DecisionTree:
         return (correct / data.shape[0]) * 100
 
     def depth(self):
-        return self.root.depth
+        """Maximum depth of the built tree."""
+
+        def _max_depth(node):
+            if node.terminal or not node.children:
+                return node.depth
+            return max(_max_depth(child) for child in node.children)
+
+        return _max_depth(self.root)
+
 
 def depth_pruning(X_train, X_validation):
     """
@@ -301,17 +331,14 @@ def depth_pruning(X_train, X_validation):
     validation  = []
     root = None
     for max_depth in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]:
-        ###########################################################################
-        # TODO: Implement the function.                                           #
-        ###########################################################################
-        pass
-        ###########################################################################
-        #                             END OF YOUR CODE                            #
-        ###########################################################################
+        tree_entropy_gain_ratio = DecisionTree(data=X_train, impurity_func=calc_entropy,gain_ratio=True,max_depth=max_depth)
+        tree_entropy_gain_ratio.build_tree()
+        training.append(tree_entropy_gain_ratio.calc_accuracy(X_train))
+        validation.append(tree_entropy_gain_ratio.calc_accuracy(X_validation))
     return training, validation
 
 
-def chi_pruning(X_train, X_test):
+def chi_pruning(X_train, X_validation):
 
     """
     Calculate the training and validation accuracies for different chi values
@@ -327,19 +354,34 @@ def chi_pruning(X_train, X_test):
     - chi_validation_acc: the validation accuracy per chi value
     - depth: the tree depth for each chi value
     """
+    chi_values = [1, 0.5, 0.25, 0.1, 0.05, 0.0001]
     chi_training_acc = []
-    chi_validation_acc  = []
-    depth = []
+    chi_validation_acc = []
+    depths = []
 
     ###########################################################################
     # TODO: Implement the function.                                           #
     ###########################################################################
-    pass
+    for p in chi_values:
+        # build pruned tree with entropy + gain ratio
+        tree = DecisionTree(
+            data=X_train,
+            impurity_func=calc_entropy,
+            chi=p,
+            gain_ratio=True
+        )
+        tree.build_tree()
+
+        # record accuracies and depth
+        chi_training_acc.append(tree.calc_accuracy(X_train))
+        chi_validation_acc.append(tree.calc_accuracy(X_validation))
+        depths.append(tree.depth())
+
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
         
-    return chi_training_acc, chi_testing_acc, depth
+    return chi_training_acc, chi_validation_acc, depths
 
 
 def count_nodes(node):
@@ -354,7 +396,11 @@ def count_nodes(node):
     ###########################################################################
     # TODO: Implement the function.                                           #
     ###########################################################################
-    pass
+    if node is None:
+        return 0
+    n_nodes = 1  # count this node
+    for child in node.children:
+        n_nodes += count_nodes(child)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
